@@ -16,9 +16,6 @@ barriers = [
   [
     new Vector( 400, 0 ),
     new Vector( 400, 50 )
-  ],
-  [
-    new Vector( 400, 50 ),
     new Vector( 500, 225 )
   ],
   [
@@ -30,6 +27,13 @@ barriers = [
     new Vector( 400, 599 )
   ]
 ]
+
+each_barrier_segment = (callback) ->
+  for b in barriers
+    index = 0
+    while index < b.length - 1
+      callback( b[index], b[index+1] )
+      index++
 
 reconnect = ->
   socket = io.connect window.location.href
@@ -100,22 +104,16 @@ draw = ->
     ctx.strokeStyle = '#000'
     ctx.stroke()
 
-  for barrier in barriers
-    index = 0
-
-    while index < barrier.length - 1
-      p1 = barrier[index]
-      p2 = barrier[index+1]
-      p3 = p1.plus(p1.minus( pos ).times(100))
-      p4 = p2.plus(p2.minus( pos ).times(100))
-      ctx.beginPath()
-      ctx.lineTo( p1.x, p1.y )
-      ctx.lineTo( p2.x, p2.y )
-      ctx.lineTo( p4.x, p4.y )
-      ctx.lineTo( p3.x, p3.y )
-      ctx.fillStyle = '#888'
-      ctx.fill()
-      index++
+  each_barrier_segment ( p1, p2 ) ->
+    p3 = p1.plus(p1.minus( pos ).times(100))
+    p4 = p2.plus(p2.minus( pos ).times(100))
+    ctx.beginPath()
+    ctx.lineTo( p1.x, p1.y )
+    ctx.lineTo( p2.x, p2.y )
+    ctx.lineTo( p4.x, p4.y )
+    ctx.lineTo( p3.x, p3.y )
+    ctx.fillStyle = '#888'
+    ctx.fill()
 
   ctx.restore()
 
@@ -177,6 +175,13 @@ get_input = ->
      pos.y = canvas.height
      velocity.y = -velocity.y
      velocity.mult(0.75)
+
+  each_barrier_segment (a, b) ->
+    closest = pos.intersection( a, b )
+    return unless closest
+    return if pos.distance( closest ) > 5
+    velocity.x = 0
+    velocity.y = 0
 
   reload-- if reload > 0
 

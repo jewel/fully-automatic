@@ -28,6 +28,8 @@ server = http.createServer (req,res) ->
 
 server.listen 4001
 
+console.log "Server running on http://localhost:4001"
+
 io = io.listen(server)
 io.set 'log level', 2
 

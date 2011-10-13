@@ -58,5 +58,18 @@ class Vector
   dot: (other) ->
     @x * other.x + @y * other.y
 
+  distance: (other) ->
+    Math.sqrt (@x - other.x) * (@x - other.x) +
+              (@y - other.y) * (@y - other.y)
+
+  # Find closest point on line segment AB to this point
+  intersection: (a,b) ->
+    len = a.distance b
+    return @distance(a) if len == 0
+    t = @minus(a).dot( b.minus( a ) ) / ( len * len )
+    return null if t < 0 || t > 1
+    a.plus( b.minus( a ).times( t ) )
+
+
 root = exports ? this
 root.Vector = Vector
