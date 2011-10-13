@@ -34,6 +34,29 @@ io = io.listen(server)
 io.set 'log level', 2
 
 bullets = []
+barriers = [
+  [
+    new Vector( 400, 0 ),
+    new Vector( 400, 50 )
+    new Vector( 500, 225 )
+  ],
+  [
+    new Vector( 400, 200 ),
+    new Vector( 375, 425 )
+  ],
+  [
+    new Vector( 500, 400 ),
+    new Vector( 400, 599 )
+  ]
+]
+
+each_barrier_segment = (callback) ->
+  for b in barriers
+    index = 0
+    while index < b.length - 1
+      callback( b[index], b[index+1] )
+      index++
+
 players = {}
 hit = {}
 last_seen = {}
@@ -52,6 +75,17 @@ setInterval( ->
   for b in bullets
     if b.pos.x < -100 || b.pos.x > 1100 || b.pos.y < -100 || b.pos.y > 700
       continue
+
+    destroyed = false
+
+    each_barrier_segment (p1,p2) ->
+      closest = b.pos.intersection( p1, p2 )
+      return unless closest
+      return if b.pos.distance( closest ) > 7
+      destroyed = true
+
+    continue if destroyed
+
     new_bullets.push( b )
   bullets = new_bullets
 , 30)
@@ -82,8 +116,9 @@ io.sockets.on 'connection', (client) ->
         dir: b.dir.rounded()
 
     client.emit 'update'
-      bullets: bulls,
-      others: others,
+      bullets: bulls
+      others: others
+      barriers: barriers
       hit: hit[client.id]
 
     delete hit[client.id]

@@ -12,21 +12,7 @@ pos = new Vector( 150, 150 )
 
 bullets = []
 others = []
-barriers = [
-  [
-    new Vector( 400, 0 ),
-    new Vector( 400, 50 )
-    new Vector( 500, 225 )
-  ],
-  [
-    new Vector( 400, 200 ),
-    new Vector( 375, 425 )
-  ],
-  [
-    new Vector( 500, 400 ),
-    new Vector( 400, 599 )
-  ]
-]
+barriers = []
 
 each_barrier_segment = (callback) ->
   for b in barriers
@@ -44,6 +30,7 @@ reconnect = ->
     last_received = new Date().getTime()
     bullets = []
     others = []
+    barriers = []
     for b in obj.bullets
       bullets.push
         pos: new Vector(b.pos.x, b.pos.y)
@@ -51,6 +38,12 @@ reconnect = ->
 
     for o in obj.others
       others.push new Vector( o.x, o.y )
+
+    for b in obj.barriers
+      barrier = []
+      for p in b
+        barrier.push new Vector( p.x, p.y )
+      barriers.push barrier
 
     if obj.hit
       pos = new Vector 100, 100
@@ -179,9 +172,12 @@ get_input = ->
   each_barrier_segment (a, b) ->
     closest = pos.intersection( a, b )
     return unless closest
-    return if pos.distance( closest ) > 5
-    velocity.x = 0
-    velocity.y = 0
+    return if pos.distance( closest ) > 7
+    # http://www.yaldex.com/games-programming/0672323699_ch13lev1sec5.html
+    delta = a.minus b
+    normal = new Vector( delta.y, -delta.x ).normalize()
+    velocity = normal.times( -2 * velocity.dot( normal ) ).plus(velocity)
+    velocity.mult 0.75
 
   reload-- if reload > 0
 

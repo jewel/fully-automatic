@@ -31,6 +31,9 @@ class Vector
     @y *= scalar
     this
 
+  times_vector: (other) ->
+    new @constructor( @x * other.x, @y * other.y )
+
   clone: ->
     new @constructor( @x, @y )
 
