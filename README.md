@@ -7,6 +7,7 @@ Installation
 ------------
 * Install node.js
 * Install npm
-* npm install coffee-script socket.io
+* sudo npm install -g socket.io
+* sudo npm install -g coffee-script
 * cake build
 * cd public; node server.js
