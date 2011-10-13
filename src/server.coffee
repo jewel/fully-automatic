@@ -26,9 +26,9 @@ server = http.createServer (req,res) ->
     res.write data, 'utf8'
     res.end()
 
-server.listen 4001
+server.listen 4000
 
-console.log "Server running on http://localhost:4001"
+console.log "Server running on http://localhost:4000"
 
 io = io.listen(server)
 io.set 'log level', 2
