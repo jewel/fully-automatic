@@ -1,4 +1,4 @@
-Project Lucky Eagle
+Fully Automatic
 ===================
 
 A multi-player, fast-paced, birds-eye-view shooter for HTML5.
