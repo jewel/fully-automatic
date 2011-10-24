@@ -126,9 +126,11 @@ window.onkeyup = (e) ->
 
 window.onmousedown = (e) ->
   mouse_pressed = true
+  false
 
 window.onmouseup = (e) ->
   mouse_pressed = false
+  false
 
 mouse_position = null
 
