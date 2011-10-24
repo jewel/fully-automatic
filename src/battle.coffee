@@ -81,6 +81,7 @@ draw = ->
   ctx.fillStyle = '#080'
   ctx.fill()
 
+
   for o in others
     ctx.beginPath()
     ctx.arc o.x, o.y, 5, 0, Math.PI*2, false
@@ -107,6 +108,13 @@ draw = ->
     ctx.lineTo( p3.x, p3.y )
     ctx.fillStyle = '#888'
     ctx.fill()
+
+  ctx.lineWidth = 4
+  ctx.strokeStyle = '#f88'
+  ctx.beginPath() 
+  ctx.moveTo( pos.x, pos.y )
+  ctx.lineTo( pos.x + velocity.x*2, pos.y + velocity.y*2 ) 
+  ctx.stroke()
 
   ctx.restore()
 
@@ -174,12 +182,14 @@ get_input = ->
   each_barrier_segment (a, b) ->
     closest = pos.intersection( a, b )
     return unless closest
-    return if pos.distance( closest ) > 7
+    return if pos.distance( closest ) > 6
     # http://www.yaldex.com/games-programming/0672323699_ch13lev1sec5.html
     delta = a.minus b
     normal = new Vector( delta.y, -delta.x ).normalize()
     velocity = normal.times( -2 * velocity.dot( normal ) ).plus(velocity)
     velocity.mult 0.75
+    pos = closest.plus(  pos.minus(closest).normalize().times(7) )
+
 
   reload-- if reload > 0
 
