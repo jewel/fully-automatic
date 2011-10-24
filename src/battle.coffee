@@ -8,7 +8,7 @@ last_received = null
 
 timer = false
 
-pos = new Vector( 150, 150 )
+pos = new Vector( 25, 25 )
 
 bullets = []
 others = []
@@ -46,7 +46,7 @@ reconnect = ->
       barriers.push barrier
 
     if obj.hit
-      pos = new Vector 100, 100
+      pos = new Vector 25, 25
       velocity = new Vector 0, 0
  
   socket.on 'connect', ->
@@ -118,11 +118,11 @@ reload = 0
 
 window.onkeydown = (e) ->
   keys_pressed[e.which] = true
-  e.which != 32
+  e.which != 32 && ( e.which < 37 || e.which > 40 )
 
 window.onkeyup = (e) ->
   keys_pressed[e.which] = false
-  e.which != 32
+  e.which != 32 && ( e.which < 37 || e.which > 40 )
 
 window.onmousedown = (e) ->
   mouse_pressed = true
@@ -138,10 +138,10 @@ document.onmousemove = (e) ->
 velocity = new Vector 0, 0
 
 get_input = ->
-  velocity.y -= 0.5   if keys_pressed[87]
-  velocity.y += 0.5   if keys_pressed[83]
-  velocity.x -= 0.5   if keys_pressed[65]
-  velocity.x += 0.5   if keys_pressed[68]
+  velocity.y -= 0.5   if keys_pressed[87] || keys_pressed[38]
+  velocity.y += 0.5   if keys_pressed[83] || keys_pressed[40]
+  velocity.x -= 0.5   if keys_pressed[65] || keys_pressed[37]
+  velocity.x += 0.5   if keys_pressed[68] || keys_pressed[39]
   velocity.mult(0.85) if keys_pressed[32]
 
   if velocity.length() > 8

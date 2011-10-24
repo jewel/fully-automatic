@@ -47,6 +47,11 @@ barriers = [
   [
     new Vector( 500, 400 ),
     new Vector( 400, 599 )
+  ],
+  [
+    new Vector( 800, 250 ),
+    new Vector( 810, 375 ),
+    new Vector( 860, 385 )
   ]
 ]
 
