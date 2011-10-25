@@ -17,10 +17,13 @@ server = http.createServer (req,res) ->
   path = '/index.html' if path == '/'
   fs.readFile "#{__dirname}/../public/" + path, (err,data) ->
     return send404 res if err
-    content_type = if path.indexOf(".js") != -1
-      'text/javascript'
-    else
-      'text/html'
+    ext = path.substr path.lastIndexOf( "." ) + 1
+    content_type = switch ext
+      when 'js' then 'text/javascript'
+      when 'css' then 'text/css'
+      when 'html' then 'text/html'
+      else
+        console.log "Unknown content type: #{ext}"
     res.writeHead 200
       'Content-Type': content_type
     res.write data, 'utf8'
@@ -68,6 +71,10 @@ last_seen = {}
 scores = {}
 names = {}
 scoreboard = []
+colors = {}
+
+color_choices = [ '080', '800', '008', '880', '808', '088', '888' ]
+color_index = 0
 
 setInterval( ->
   for b in bullets
@@ -83,9 +90,9 @@ setInterval( ->
   scoreboard = []
   for id, name of names
     scoreboard.push
-      id: id
       name: name
       value: scores[id]
+      color: colors[id]
 
   new_bullets = []
   for b in bullets
@@ -107,6 +114,8 @@ setInterval( ->
 , 30)
 
 io.sockets.on 'connection', (client) ->
+  colors[client.id] = color_choices[ color_index++ % color_choices.length ]
+  console.log colors
   client.on 'update', (msg) ->
     now = new Date().getTime()
     last_seen[client.id] = now
@@ -125,7 +134,9 @@ io.sockets.on 'connection', (client) ->
         continue
       if( now - last_seen[i] > 500 )
         continue
-      others.push p.rounded()
+      others.push
+        pos: p.rounded()
+        color: colors[i]
 
     bulls = []
     for b in bullets
@@ -139,6 +150,7 @@ io.sockets.on 'connection', (client) ->
       barriers: barriers
       hit: hit[client.id]
       scores: scoreboard
+      color: colors[client.id]
 
     delete hit[client.id]
 

@@ -8,6 +8,8 @@ last_received = null
 
 name = prompt "Your name?"
 
+color = "000"
+
 timer = false
 
 pos = new Vector( 25, 25 )
@@ -33,13 +35,17 @@ reconnect = ->
     bullets = []
     others = []
     barriers = []
+    color = obj.color
+
     for b in obj.bullets
       bullets.push
         pos: new Vector(b.pos.x, b.pos.y)
         dir: new Vector(b.dir.x, b.dir.y)
 
     for o in obj.others
-      others.push new Vector( o.x, o.y )
+      others.push
+        pos: new Vector( o.pos.x, o.pos.y )
+        color: o.color
 
     for b in obj.barriers
       barrier = []
@@ -59,6 +65,7 @@ reconnect = ->
         .append(name_cell)
         .append(score_cell)
         .appendTo( '#scores' )
+        .css({ background: "##{score.color}", text: 'white' })
 
   socket.on 'connect', ->
     last_received = new Date().getTime() + 5000
@@ -89,16 +96,16 @@ draw = ->
   ctx.arc(pos.x, pos.y, 5, 0, Math.PI*2, false)
   ctx.closePath()
   ctx.stroke()
-  ctx.fillStyle = '#080'
+  ctx.fillStyle = "##{color}"
   ctx.fill()
 
 
   for o in others
     ctx.beginPath()
-    ctx.arc o.x, o.y, 5, 0, Math.PI*2, false
+    ctx.arc o.pos.x, o.pos.y, 5, 0, Math.PI*2, false
     ctx.closePath()
     ctx.stroke()
-    ctx.fillStyle = '#800'
+    ctx.fillStyle = "##{o.color}"
     ctx.fill()
 
   for barrier in barriers
@@ -119,13 +126,6 @@ draw = ->
     ctx.lineTo( p3.x, p3.y )
     ctx.fillStyle = '#888'
     ctx.fill()
-
-  ctx.lineWidth = 4
-  ctx.strokeStyle = '#f88'
-  ctx.beginPath() 
-  ctx.moveTo( pos.x, pos.y )
-  ctx.lineTo( pos.x + velocity.x*2, pos.y + velocity.y*2 ) 
-  ctx.stroke()
 
   ctx.restore()
 
