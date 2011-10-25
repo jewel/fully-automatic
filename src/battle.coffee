@@ -6,6 +6,8 @@ socket = null
 
 last_received = null
 
+name = prompt "Your name?"
+
 timer = false
 
 pos = new Vector( 25, 25 )
@@ -48,7 +50,16 @@ reconnect = ->
     if obj.hit
       pos = new Vector 25, 25
       velocity = new Vector 0, 0
- 
+
+    $('#scores').empty()
+    for score in obj.scores
+      name_cell = $('<td>').text score.name
+      score_cell = $('<td>').text score.value
+      row = $('<tr>')
+        .append(name_cell)
+        .append(score_cell)
+        .appendTo( '#scores' )
+
   socket.on 'connect', ->
     last_received = new Date().getTime() + 5000
 
@@ -211,6 +222,7 @@ get_input = ->
   socket.emit 'update'
     pos: pos
     bullet: bullet
+    name: name
 
   time_diff = new Date().getTime() - last_received
 

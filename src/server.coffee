@@ -65,6 +65,9 @@ each_barrier_segment = (callback) ->
 players = {}
 hit = {}
 last_seen = {}
+scores = {}
+names = {}
+scoreboard = []
 
 setInterval( ->
   for b in bullets
@@ -74,7 +77,15 @@ setInterval( ->
       continue
     for id, p of players
       if p.minus( b.pos ).length_squared() < 25
+        scores[id]++ unless hit[id]
         hit[id] = true
+
+  scoreboard = []
+  for id, name of names
+    scoreboard.push
+      id: id
+      name: name
+      value: scores[id]
 
   new_bullets = []
   for b in bullets
@@ -105,6 +116,8 @@ io.sockets.on 'connection', (client) ->
         dir: new Vector( msg.bullet.dir.x, msg.bullet.dir.y )
         warmup: 4
 
+    names[client.id] = msg.name
+    scores[client.id] = 0 unless scores[client.id]
     players[client.id] = new Vector( msg.pos.x, msg.pos.y )
     others = []
     for i, p of players
@@ -125,6 +138,7 @@ io.sockets.on 'connection', (client) ->
       others: others
       barriers: barriers
       hit: hit[client.id]
+      scores: scoreboard
 
     delete hit[client.id]
 
@@ -134,3 +148,5 @@ io.sockets.on 'connection', (client) ->
   client.on 'disconnect', ->
     console.log( "disconnect" )
     delete players[client.id]
+    delete scores[client.id]
+    delete names[client.id]
