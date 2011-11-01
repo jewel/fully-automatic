@@ -12,7 +12,8 @@ color = "000"
 
 timer = false
 
-pos = new Vector( 25, 25 )
+pos = new Vector 25, 25
+velocity = new Vector 0, 0
 
 bullets = []
 others = []
@@ -53,8 +54,11 @@ reconnect = ->
         barrier.push new Vector( p.x, p.y )
       barriers.push barrier
 
+    random_int = (max) ->
+      Math.round( Math.random() * max )
+
     if obj.hit
-      pos = new Vector 25, 25
+      pos = new Vector random_int(canvas.width), random_int(canvas.height)
       velocity = new Vector 0, 0
 
     $('#scores').empty()
@@ -155,8 +159,6 @@ mouse_position = null
 
 document.onmousemove = (e) ->
   mouse_position = e
-
-velocity = new Vector 0, 0
 
 get_input = ->
   velocity.y -= 0.5   if keys_pressed[87] || keys_pressed[38]
