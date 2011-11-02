@@ -161,14 +161,28 @@ document.onmousemove = (e) ->
   mouse_position = e
 
 get_input = ->
-  velocity.y -= 0.5   if keys_pressed[87] || keys_pressed[38]
-  velocity.y += 0.5   if keys_pressed[83] || keys_pressed[40]
-  velocity.x -= 0.5   if keys_pressed[65] || keys_pressed[37]
-  velocity.x += 0.5   if keys_pressed[68] || keys_pressed[39]
+  acc = 0.5
+  velocity.y -= acc if keys_pressed[87] || keys_pressed[38]
+  velocity.y += acc if keys_pressed[83] || keys_pressed[40]
+  velocity.x -= acc if keys_pressed[65] || keys_pressed[37]
+  velocity.x += acc if keys_pressed[68] || keys_pressed[39]
   velocity.mult(0.85) if keys_pressed[32]
+  velocity.mult(0.85) unless keys_pressed[87] ||
+                             keys_pressed[83] ||
+                             keys_pressed[65] ||
+                             keys_pressed[68] ||
+                             keys_pressed[38] ||
+                             keys_pressed[40] ||
+                             keys_pressed[37] ||
+                             keys_pressed[39]
 
-  if velocity.length() > 8
-    velocity.normalize().mult(8)
+  if reload
+    max_speed = 4
+  else
+    max_speed = 8
+
+  if velocity.length() > max_speed
+    velocity.mult(0.85)
 
   pos.add( velocity )
 
