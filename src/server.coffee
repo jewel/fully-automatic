@@ -24,7 +24,7 @@ server = http.createServer (req,res) ->
       when 'html' then 'text/html'
       else
         console.log "Unknown content type: #{ext}"
-    res.writeHead 200
+    res.writeHead 200,
       'Content-Type': content_type
     res.write data, 'utf8'
     res.end()
@@ -144,7 +144,7 @@ io.sockets.on 'connection', (client) ->
         pos: b.pos.rounded()
         dir: b.dir.rounded()
 
-    client.emit 'update'
+    client.emit 'update',
       bullets: bulls
       others: others
       barriers: barriers
