@@ -3,6 +3,8 @@ Fully Automatic
 
 A multi-player, fast-paced, birds-eye-view shooter for HTML5.
 
+[screenshot](screenshot.png)
+
 Installation
 ------------
 * Install node.js
