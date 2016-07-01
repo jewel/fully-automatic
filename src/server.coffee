@@ -24,14 +24,13 @@ server = http.createServer (req,res) ->
       when 'html' then 'text/html'
       else
         console.log "Unknown content type: #{ext}"
-    res.writeHead 200,
-      'Content-Type': content_type
+    res.writeHead 200, 'Content-Type': content_type
     res.write data, 'utf8'
     res.end()
 
-server.listen 4000
+server.listen 4100
 
-console.log "Server running on http://localhost:4000"
+console.log "Server running on http://localhost:4100"
 
 io = io.listen(server)
 io.set 'log level', 2

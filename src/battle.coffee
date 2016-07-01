@@ -235,7 +235,7 @@ get_input = ->
 
     reload = 3
 
-  socket.emit 'update', 
+  socket.emit 'update',
     pos: pos
     bullet: bullet
     name: name
