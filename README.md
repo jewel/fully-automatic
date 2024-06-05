@@ -9,10 +9,8 @@ Installation
 ------------
 * Install node.js
 * Install npm
-* sudo npm install -g socket.io
-* sudo npm install -g coffee-script
-* cake build
-* cd public; node server.js
+* `npm i`
+* `npm exec nodemon`
 
 Troubleshoot
 ------------

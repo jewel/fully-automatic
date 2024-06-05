@@ -6,7 +6,7 @@ socket = null
 
 last_received = null
 
-name = prompt "Your name?"
+name = "Nobody"
 
 color = "000"
 
@@ -14,6 +14,9 @@ timer = false
 
 pos = new Vector 25, 25
 velocity = new Vector 0, 0
+
+map_width = 5000
+map_height = 5000
 
 bullets = []
 others = []
@@ -58,46 +61,41 @@ reconnect = ->
       Math.round( Math.random() * max )
 
     if obj.hit
-      pos = new Vector random_int(canvas.width), random_int(canvas.height)
+      pos = new Vector random_int(map_width), random_int(map_height)
       velocity = new Vector 0, 0
-
-    $('#scores').empty()
-    for score in obj.scores
-      name_cell = $('<td>').text score.name
-      score_cell = $('<td>').text score.value
-      row = $('<tr>')
-        .append(name_cell)
-        .append(score_cell)
-        .appendTo( '#scores' )
-        .css({ background: "##{score.color}", text: 'white' })
 
   socket.on 'connect', ->
     last_received = new Date().getTime() + 5000
 
     if !timer
-       window.setInterval get_input, 30
+       window.setInterval get_input, 1000/60
 
     timer = true
 
 reconnect()
 
+px = (x) -> x - pos.x + canvas.width / 2
+py = (y) -> y - pos.y + canvas.height / 2
+
 draw = ->
   ctx.save()
-  ctx.fillStyle = '#fff'
+  ctx.fillStyle = '#888'
   ctx.fillRect 0, 0, canvas.width, canvas.height
+  ctx.fillStyle = '#fff'
+  ctx.fillRect px(0), py(0), map_width, map_height
 
   ctx.save()
   ctx.lineWidth = 2
   for b in bullets
     ctx.beginPath()
-    ctx.moveTo( b.pos.x, b.pos.y )
+    ctx.moveTo( px(b.pos.x), py(b.pos.y) )
     end = b.pos.minus b.dir.normalized().mult( 8 )
-    ctx.lineTo( end.x, end.y )
+    ctx.lineTo( px(end.x), py(end.y) )
     ctx.stroke()
   ctx.restore()
 
   ctx.beginPath()
-  ctx.arc(pos.x, pos.y, 5, 0, Math.PI*2, false)
+  ctx.arc(px(pos.x), py(pos.y), 5, 0, Math.PI*2, false)
   ctx.closePath()
   ctx.stroke()
   ctx.fillStyle = "##{color}"
@@ -106,30 +104,37 @@ draw = ->
 
   for o in others
     ctx.beginPath()
-    ctx.arc o.pos.x, o.pos.y, 5, 0, Math.PI*2, false
+    ctx.arc px(o.pos.x), py(o.pos.y), 5, 0, Math.PI*2, false
     ctx.closePath()
     ctx.stroke()
     ctx.fillStyle = "##{o.color}"
     ctx.fill()
 
+  each_barrier_segment ( p1, p2 ) ->
+    p3 = p1.plus p1.minus( pos ).times(1000)
+    p4 = p2.plus p2.minus( pos ).times(1000)
+    ctx.beginPath()
+    ctx.lineTo px(p1.x), py(p1.y)
+    ctx.lineTo px(p2.x), py(p2.y)
+    ctx.lineTo px(p4.x), py(p4.y)
+    ctx.lineTo px(p3.x), py(p3.y)
+    ctx.lineTo px(p1.x), py(p1.y)
+    ctx.fillStyle = '#888'
+    ctx.fill()
+    ctx.strokeStyle = '#888'
+    ctx.lineWidth = 4
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.stroke()
+
   for barrier in barriers
     ctx.beginPath()
     for point in barrier
-      ctx.lineTo point.x, point.y
+      ctx.lineTo px(point.x), py(point.y)
     ctx.lineWidth = 4
-    ctx.strokeStyle = '#000'
+    ctx.strokeStyle = '#666'
     ctx.stroke()
 
-  each_barrier_segment ( p1, p2 ) ->
-    p3 = p1.plus(p1.minus( pos ).times(100))
-    p4 = p2.plus(p2.minus( pos ).times(100))
-    ctx.beginPath()
-    ctx.lineTo( p1.x, p1.y )
-    ctx.lineTo( p2.x, p2.y )
-    ctx.lineTo( p4.x, p4.y )
-    ctx.lineTo( p3.x, p3.y )
-    ctx.fillStyle = '#888'
-    ctx.fill()
 
   ctx.restore()
 
@@ -161,50 +166,50 @@ document.onmousemove = (e) ->
   mouse_position = e
 
 get_input = ->
-  acc = 0.5
+  acc = 0.25
   velocity.y -= acc if keys_pressed[87] || keys_pressed[38]
   velocity.y += acc if keys_pressed[83] || keys_pressed[40]
   velocity.x -= acc if keys_pressed[65] || keys_pressed[37]
   velocity.x += acc if keys_pressed[68] || keys_pressed[39]
-  velocity.mult(0.85) if keys_pressed[32]
-  velocity.mult(0.85) unless keys_pressed[87] ||
-                             keys_pressed[83] ||
-                             keys_pressed[65] ||
-                             keys_pressed[68] ||
-                             keys_pressed[38] ||
-                             keys_pressed[40] ||
-                             keys_pressed[37] ||
-                             keys_pressed[39]
+  velocity.mult(0.925) if keys_pressed[32]
+  velocity.mult(0.925) unless keys_pressed[87] ||
+                              keys_pressed[83] ||
+                              keys_pressed[65] ||
+                              keys_pressed[68] ||
+                              keys_pressed[38] ||
+                              keys_pressed[40] ||
+                              keys_pressed[37] ||
+                              keys_pressed[39]
 
   if reload
-    max_speed = 4
+    max_speed = 2
   else
-    max_speed = 8
+    max_speed = 4
 
   if velocity.length() > max_speed
-    velocity.mult(0.85)
+    velocity.mult(0.925)
 
   pos.add( velocity )
 
   if pos.x < 0
      pos.x = 0
      velocity.x = -velocity.x
-     velocity.mult(0.75)
+     velocity.mult(0.875)
 
   if pos.y < 0
      pos.y = 0
      velocity.y = -velocity.y
-     velocity.mult(0.75)
+     velocity.mult(0.875)
 
-  if pos.x > canvas.width
-     pos.x = canvas.width
+  if pos.x > map_width
+     pos.x = map_width
      velocity.x = -velocity.x
-     velocity.mult(0.75)
+     velocity.mult(0.875)
 
-  if pos.y > canvas.height
-     pos.y = canvas.height
+  if pos.y > map_height
+     pos.y = map_height
      velocity.y = -velocity.y
-     velocity.mult(0.75)
+     velocity.mult(0.875)
 
   each_barrier_segment (a, b) ->
     closest = pos.intersection( a, b )
@@ -225,15 +230,15 @@ get_input = ->
   if mouse_pressed && mouse_position && reload == 0
     dir = new Vector( mouse_position.clientX + window.scrollX - canvas.offsetLeft,
                       mouse_position.clientY + window.scrollY - canvas.offsetTop )
-    dir.sub(pos)
+    dir.sub {x: canvas.width / 2, y: canvas.height / 2}
     dir.normalize()
-    dir.mult( 10 )
+    dir.mult 5
 
     bullet =
       pos: pos.plus(dir)
       dir: dir
 
-    reload = 3
+    reload = 6
 
   socket.emit 'update',
     pos: pos

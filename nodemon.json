@@ -1,0 +1,5 @@
+{
+  "watch": ["src/"],
+  "ext": "*",
+  "exec": "rsync -a --del --exclude='*.coffee' src/ dist/ && coffee -o dist -c src && node dist/server/index.js"
+}

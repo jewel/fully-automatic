@@ -1,9 +1,9 @@
 http = require 'http'
 url = require 'url'
 fs = require 'fs'
-io = require 'socket.io'
-sys = require 'sys'
+{Server} = require 'socket.io'
 {Vector} = require './vector'
+{convertMap} = require './convert_map'
 
 send404 = (res) ->
   res.writeHead(404)
@@ -13,9 +13,8 @@ send404 = (res) ->
 
 server = http.createServer (req,res) ->
   path = url.parse(req.url).pathname
-  console.log( path )
   path = '/index.html' if path == '/'
-  fs.readFile "#{__dirname}/../public/" + path, (err,data) ->
+  fs.readFile "#{__dirname}/../client/" + path, (err,data) ->
     return send404 res if err
     ext = path.substr path.lastIndexOf( "." ) + 1
     content_type = switch ext
@@ -30,32 +29,13 @@ server = http.createServer (req,res) ->
 
 server.listen 4100
 
+io = new Server(server)
+
 console.log "Server running on http://localhost:4100"
 
-io = io.listen(server)
-io.set 'log level', 2
-
 bullets = []
-barriers = [
-  [
-    new Vector( 400, 0 ),
-    new Vector( 400, 50 )
-    new Vector( 500, 225 )
-  ],
-  [
-    new Vector( 400, 200 ),
-    new Vector( 375, 425 )
-  ],
-  [
-    new Vector( 500, 400 ),
-    new Vector( 400, 599 )
-  ],
-  [
-    new Vector( 800, 250 ),
-    new Vector( 810, 375 ),
-    new Vector( 860, 385 )
-  ]
-]
+
+barriers = convertMap()
 
 each_barrier_segment = (callback) ->
   for b in barriers
@@ -110,7 +90,7 @@ setInterval( ->
 
     new_bullets.push( b )
   bullets = new_bullets
-, 30)
+, 16)
 
 io.sockets.on 'connection', (client) ->
   colors[client.id] = color_choices[ color_index++ % color_choices.length ]
