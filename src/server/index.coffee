@@ -33,111 +33,68 @@ io = new Server(server)
 
 console.log "Server running on http://localhost:4100"
 
-bullets = []
-
-barriers = convertMap()
+map = convertMap()
 
 each_barrier_segment = (callback) ->
-  for b in barriers
+  for b in map.barriers
     index = 0
     while index < b.length - 1
       callback( b[index], b[index+1] )
       index++
 
 players = {}
-hit = {}
 last_seen = {}
-scores = {}
-names = {}
-scoreboard = []
-colors = {}
 
-color_choices = [ '080', '800', '008', '880', '808', '088', '888' ]
-color_index = 0
+bullets = []
 
-setInterval( ->
-  for b in bullets
-    b.pos.add b.dir
-    if b.warmup > 0
-      b.warmup--
-      continue
-    for id, p of players
-      if p.minus( b.pos ).length_squared() < 25
-        scores[id]++ unless hit[id]
-        hit[id] = true
-
-  scoreboard = []
-  for id, name of names
-    scoreboard.push
-      name: name
-      value: scores[id]
-      color: colors[id]
-
-  new_bullets = []
-  for b in bullets
-    if b.pos.x < -100 || b.pos.x > 1100 || b.pos.y < -100 || b.pos.y > 700
-      continue
-
-    destroyed = false
-
-    each_barrier_segment (p1,p2) ->
-      closest = b.pos.intersection( p1, p2 )
-      return unless closest
-      return if b.pos.distance( closest ) > 7
-      destroyed = true
-
-    continue if destroyed
-
-    new_bullets.push( b )
-  bullets = new_bullets
-, 16)
+randomInt = (max) ->
+  Math.floor Math.random * max
 
 io.sockets.on 'connection', (client) ->
-  colors[client.id] = color_choices[ color_index++ % color_choices.length ]
-  console.log colors
+  client.lastBullet = 0
+
+  client.emit 'map', {map}
+
+  client.on 'identity', (msg) ->
+    client.identity = msg.identity
+    player = players[client.identity]
+    if !player
+      team = (Object.keys(players).length % 2) + 1
+      player =
+        team: team
+        pos: map.spawns[team].add new Vector(randomInt(50) - 25, randomInt(50) - 25)
+        dir: new Vector 0, 0
+      players[client.identity] = player
+      client.emit 'player', {player}
+
   client.on 'update', (msg) ->
     now = new Date().getTime()
     last_seen[client.id] = now
+
+    player = players[client.identity]
+    if !player
+      return
+
     if msg.bullet
       bullets.push
-        pos: new Vector( msg.bullet.pos.x, msg.bullet.pos.y )
-        dir: new Vector( msg.bullet.dir.x, msg.bullet.dir.y )
-        warmup: 4
+        pos: Vector.load msg.bullet.pos
+        dir: Vector.load msg.bullet.dir
+        team: player.team
 
-    names[client.id] = msg.name
-    scores[client.id] = 0 unless scores[client.id]
-    players[client.id] = new Vector( msg.pos.x, msg.pos.y )
+    player.pos = Vector.load msg.pos
+
     others = []
-    for i, p of players
-      if( i == client.id )
-        continue
-      if( now - last_seen[i] > 500 )
-        continue
-      others.push
-        pos: p.rounded()
-        color: colors[i]
-
-    bulls = []
-    for b in bullets
-      bulls.push
-        pos: b.pos.rounded()
-        dir: b.dir.rounded()
+    for identity, p of players
+      others.push p unless identity == client.identity
 
     client.emit 'update',
-      bullets: bulls
       others: others
-      barriers: barriers
-      hit: hit[client.id]
-      scores: scoreboard
-      color: colors[client.id]
+      bullets: bullets.slice client.lastBullet
 
-    delete hit[client.id]
+    client.lastBullet = bullets.length
 
   client.on 'error', ->
     console.log( "error" )
 
   client.on 'disconnect', ->
     console.log( "disconnect" )
-    delete players[client.id]
-    delete scores[client.id]
-    delete names[client.id]

@@ -1,11 +1,14 @@
 class Vector
   constructor: (@x, @y) ->
 
+  @load: (obj) ->
+    new Vector obj.x, obj.y
+
   equals: (other) ->
     @x == other.x && @y == other.y
 
   rounded: ->
-    new Vector Math.round( @x ), Math.round( @y )
+    new @constructor Math.round( @x ), Math.round( @y )
 
   plus: (other) ->
     new @constructor( @x + other.x, @y + other.y )

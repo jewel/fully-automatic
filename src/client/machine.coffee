@@ -22,11 +22,11 @@ class Machine
 
   add: (start_tick, start_position, direction) ->
     # calculate the wall collision
-    [end_position, end_time] = world.collide position, direction
+    [end_position, end_tick] = world.collide position, direction
 
-    # since bullets cannot interact with each otehr, it does not matter if they
+    # since bullets cannot interact with each other, it does not matter if they
     # are added in the same order on each client
-    @bullets += {start_tick, end_tick, start_position, direction}
+    @bullets.push {start_tick, end_tick, start_position, direction}
 
   advance: ->
     # This is almost a no-op, as we can compute the current position of each
