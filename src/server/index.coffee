@@ -39,12 +39,12 @@ bases = [
   {
     team: 1
     pos: new Vector 0, 0
-    health: 1000
+    health: 333
   }
   {
     team: 2
     pos: new Vector map.width, map.height
-    health: 1000
+    health: 333
   }
 ]
 
@@ -72,6 +72,12 @@ io.sockets.on 'connection', (client) ->
         dir: new Vector 0, 0
       players[client.identity] = player
       client.emit 'player', {player}
+
+  client.on 'base_hit', (msg) ->
+    for base in bases
+      continue unless base.team == msg.team
+      base.health--
+      base.health = 333 if base.health <= 10
 
   client.on 'update', (msg) ->
     now = new Date().getTime()

@@ -115,23 +115,6 @@ draw = ->
   ctx.fillStyle = '#fff'
   ctx.fillRect px(0), py(0), map.width * viewScale, map.height * viewScale
 
-  # draw bases
-  for base in bases
-    ctx.beginPath()
-    if base.team == 1
-      ctx.arc(px(base.pos.x), py(base.pos.y), (base.health / 3) * viewScale, 0, Math.PI / 2, false)
-    else
-      ctx.arc(px(base.pos.x), py(base.pos.y), (base.health / 3) * viewScale, Math.PI, Math.PI * 3 / 2, false)
-    ctx.lineTo px(base.pos.x), py(base.pos.y)
-    ctx.closePath()
-    ctx.stroke()
-    if base.team == 1
-      ctx.fillStyle = "#f00"
-    else
-      ctx.fillStyle = "#00f"
-    ctx.fill()
-
-
   # draw bullets
   ctx.lineWidth = 2 * viewScale
   for b in bullets
@@ -145,6 +128,23 @@ draw = ->
       ctx.strokeStyle = '#000'
     ctx.stroke()
 
+  # draw bases
+  for base in bases
+    ctx.beginPath()
+    if base.team == 1
+      ctx.arc(px(base.pos.x), py(base.pos.y), base.health * viewScale, 0, Math.PI / 2, false)
+    else
+      ctx.arc(px(base.pos.x), py(base.pos.y), base.health * viewScale, Math.PI, Math.PI * 3 / 2, false)
+    ctx.lineTo px(base.pos.x), py(base.pos.y)
+    ctx.closePath()
+    ctx.stroke()
+    if base.team == 1
+      ctx.fillStyle = "#f00"
+    else
+      ctx.fillStyle = "#00f"
+    ctx.fill()
+
+  # draw players
   ctx.beginPath()
   ctx.arc(px(player.pos.x), py(player.pos.y), 5 * viewScale, 0, Math.PI*2, false)
   ctx.closePath()
@@ -297,6 +297,7 @@ get_input = ->
       pos: player.pos.plus(dir)
       dir: dir
       team: player.team
+      owner: identity
 
     # Figure out which wall bullet will hit
     minTime = Infinity
@@ -340,6 +341,7 @@ get_input = ->
   for b in bullets
     b.pos.add b.dir
 
+  # see if bullet hit us
   for b in bullets
     continue if b.team == player.team
     distanceToFront = b.pos.distance(player.pos)
@@ -349,6 +351,18 @@ get_input = ->
     if distanceToFront <= 5 || distanceToEnd <= 5
       # we died
       player.pos = Vector.load(map.spawns[player.team]).plus new Vector(randomInt(50) - 25, randomInt(50) - 25)
+
+  # see if our own bullets hit enemy base
+  for bullet in bullets
+    continue unless bullet.owner == identity
+    continue if bullet.spent
+    for base in bases
+      continue if base.team == bullet.team
+      distance = base.pos.distance bullet.pos
+      if distance < base.health
+        bullet.spent = true
+        socket.emit 'base_hit',
+          team: base.team
 
   newBullets = []
 
