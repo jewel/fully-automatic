@@ -4,6 +4,19 @@ class Vector
   @load: (obj) ->
     new Vector obj.x, obj.y
 
+  # Find the intersection of line segments P1-P2 and P3-P4
+  @intersection: (p1, p2, p3, p4) ->
+    s1 = p2.minus p1
+    s2 = p4.minus p3
+
+    s = (-s1.y * (p1.x - p3.x) + s1.x * (p1.y - p3.y)) / (-s2.x * s1.y + s1.x * s2.y)
+    t = ( s2.x * (p1.y - p3.y) - s2.y * (p1.x - p3.x)) / (-s2.x * s1.y + s1.x * s2.y)
+
+    if s >= 0 && s <= 1 && t >= 0 && t <= 1
+      new Vector p1.x + (t * s1.x), p1.y + (t * s1.y)
+    else
+      null
+
   equals: (other) ->
     @x == other.x && @y == other.y
 
@@ -69,7 +82,7 @@ class Vector
               (@y - other.y) * (@y - other.y)
 
   # Find closest point on line segment AB to this point
-  intersection: (a,b) ->
+  closest: (a,b) ->
     len = a.distance b
     return @distance(a) if len == 0
     t = @minus(a).dot( b.minus( a ) ) / ( len * len )

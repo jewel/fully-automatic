@@ -45,13 +45,14 @@ map = null
 bullets = []
 others = []
 bases = null
+currentTick = 0
 
 each_barrier_segment = (callback) ->
   for barrier in map.barriers
     index = 0
     points = barrier.points
     while index < points.length - 1
-      callback barrier.team, points[index], points[index+1]
+      callback barrier, points[index], points[index+1]
       index++
 
 reconnect = ->
@@ -74,6 +75,7 @@ reconnect = ->
 
   socket.on 'update', (obj) ->
     last_received = new Date().getTime()
+    currentTick = obj.tick
     others = obj.others
     for o in others
       o.pos = Vector.load o.pos
@@ -114,6 +116,14 @@ draw = ->
     end = b.pos.minus b.dir.normalized().mult( 8 )
     ctx.lineTo( px(end.x), py(end.y) )
     ctx.stroke()
+
+    for i in b.intersections
+      ctx.beginPath()
+      ctx.arc(px(i.x), py(i.y), 5 * viewScale, 0, Math.PI*2, false)
+      ctx.closePath()
+      ctx.fillStyle = "#000"
+      ctx.fill()
+
   ctx.restore()
 
   ctx.beginPath()
@@ -138,7 +148,8 @@ draw = ->
       ctx.fillStyle == "#008"
     ctx.fill()
 
-  each_barrier_segment ( team, p1, p2 ) ->
+  each_barrier_segment ( barrier, p1, p2 ) ->
+    return if barrier.edge
     p3 = p1.plus p1.minus( player.pos ).times(1000)
     p4 = p2.plus p2.minus( player.pos ).times(1000)
     ctx.beginPath()
@@ -166,6 +177,14 @@ draw = ->
     else
       ctx.strokeStyle = '#448'
     ctx.stroke()
+
+  for b in bullets
+    for i in b.intersections
+      ctx.beginPath()
+      ctx.arc(px(i.x), py(i.y), 5 * viewScale, 0, Math.PI*2, false)
+      ctx.closePath()
+      ctx.fillStyle = "#000"
+      ctx.fill()
 
   ctx.restore()
 
@@ -235,28 +254,9 @@ get_input = ->
 
   player.pos.add player.dir
 
-  if player.pos.x < 0
-     player.pos.x = 0
-     player.dir.x = -player.dir.x
-     player.dir.mult 0.875
-
-  if player.pos.y < 0
-     player.pos.y = 0
-     player.dir.y = -player.dir.y
-     player.dir.mult 0.875
-
-  if player.pos.x >= map.width
-     player.pos.x = map.width
-     player.dir.x = -player.dir.x
-     player.dir.mult 0.875
-
-  if player.pos.y >= map.height
-     player.pos.y = map.height
-     player.dir.y = -player.dir.y
-     player.dir.mult 0.875
-
-  each_barrier_segment (team, a, b) ->
-    closest = player.pos.intersection( a, b )
+  # Bounce off walls
+  each_barrier_segment (barrier, a, b) ->
+    closest = player.pos.closest( a, b )
     return unless closest
     return if player.pos.distance( closest ) > 6
     # http://www.yaldex.com/games-programming/0672323699_ch13lev1sec5.html
@@ -283,6 +283,32 @@ get_input = ->
       pos: player.pos.plus(dir)
       dir: dir
 
+    # Figure out which wall bullet will hit
+    minTime = Infinity
+    intersections = []
+    each_barrier_segment (barrier, p1, p2) ->
+      maxDistance = map.width + map.height
+      bulletEnd = bullet.pos.plus(bullet.dir.normalized().times(maxDistance))
+      intersection = Vector.intersection bullet.pos, bulletEnd, p1, p2
+      return unless intersection
+      intersections.push intersection
+
+      # calculate intersect time
+      diff = intersection.minus bullet.pos
+      if dir.x != 0
+        t = diff.x / dir.x
+      else if dir.y != 0
+        t = diff.y / dir.y
+      else
+        t = 0
+      minTime = Math.min minTime, t
+
+    if minTime < Infinity
+      bullet.deathTick = currentTick + Math.round(minTime)
+      bullet.intersections = intersections
+    else
+      bullet = null
+
     reload = 6
 
   socket.emit 'update',
@@ -297,5 +323,13 @@ get_input = ->
 
   for b in bullets
     b.pos.add b.dir
+
+  newBullets = []
+
+  # Clean out old bullets
+  bullets = bullets.filter (b) ->
+    b.deathTick >= currentTick
+
+  currentTick++
 
   draw()

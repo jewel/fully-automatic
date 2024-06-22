@@ -54,6 +54,22 @@ convertMap = (svgContent) ->
       team: 1
       points: parsePathCommands(path.getAttribute('d'))
   segments = segments.concat mirrorMap segments
+  segments.push
+    edge: true
+    team: 1
+    points: [
+      new Vector 0, map_height
+      new Vector 0, 0
+      new Vector map_width, 0
+    ]
+  segments.push
+    edge: true
+    team: 2
+    points: [
+      new Vector map_width, 0
+      new Vector map_width, map_height
+      new Vector 0, map_height
+    ]
 
   barriers: segments
   width: map_width

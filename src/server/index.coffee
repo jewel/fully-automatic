@@ -33,14 +33,8 @@ io = new Server(server)
 
 console.log "Server running on http://localhost:4100"
 
+tick = 0
 map = convertMap()
-
-each_barrier_segment = (callback) ->
-  for b in map.barriers
-    index = 0
-    while index < b.length - 1
-      callback( b[index], b[index+1] )
-      index++
 
 players = {}
 last_seen = {}
@@ -62,7 +56,7 @@ io.sockets.on 'connection', (client) ->
       team = (Object.keys(players).length % 2) + 1
       player =
         team: team
-        pos: map.spawns[team].add new Vector(randomInt(50) - 25, randomInt(50) - 25)
+        pos: map.spawns[team].plus new Vector(randomInt(50) - 25, randomInt(50) - 25)
         dir: new Vector 0, 0
       players[client.identity] = player
       client.emit 'player', {player}
@@ -76,10 +70,9 @@ io.sockets.on 'connection', (client) ->
       return
 
     if msg.bullet
-      bullets.push
-        pos: Vector.load msg.bullet.pos
-        dir: Vector.load msg.bullet.dir
-        team: player.team
+      bullet = msg.bullet
+      bullet.team = player.team
+      bullets.push bullet
 
     player.pos = Vector.load msg.pos
 
@@ -88,6 +81,7 @@ io.sockets.on 'connection', (client) ->
       others.push p unless identity == client.identity
 
     client.emit 'update',
+      tick: tick
       others: others
       bullets: bullets.slice client.lastBullet
 
@@ -98,3 +92,9 @@ io.sockets.on 'connection', (client) ->
 
   client.on 'disconnect', ->
     console.log( "disconnect" )
+
+setInterval(
+  ->
+    tick++
+  16
+)
