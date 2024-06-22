@@ -44,7 +44,7 @@ player = null
 map = null
 bullets = []
 others = []
-bases = null
+bases = []
 currentTick = 0
 
 each_barrier_segment = (callback) ->
@@ -86,6 +86,10 @@ reconnect = ->
 
       bullets.push b
 
+    bases = obj.bases
+    for b in bases
+      b.pos = Vector.load b.pos
+
   socket.on 'connect', ->
     last_received = new Date().getTime() + 5000
 
@@ -103,28 +107,43 @@ py = (y) -> (y - player.pos.y) * viewScale + canvas.height / 2
 
 draw = ->
   ctx.save()
+  # blank canvas
   ctx.fillStyle = '#888'
   ctx.fillRect 0, 0, canvas.width, canvas.height
+
+  # draw inside map
   ctx.fillStyle = '#fff'
   ctx.fillRect px(0), py(0), map.width * viewScale, map.height * viewScale
 
-  ctx.save()
+  # draw bases
+  for base in bases
+    ctx.beginPath()
+    if base.team == 1
+      ctx.arc(px(base.pos.x), py(base.pos.y), (base.health / 3) * viewScale, 0, Math.PI / 2, false)
+    else
+      ctx.arc(px(base.pos.x), py(base.pos.y), (base.health / 3) * viewScale, Math.PI, Math.PI * 3 / 2, false)
+    ctx.lineTo px(base.pos.x), py(base.pos.y)
+    ctx.closePath()
+    ctx.stroke()
+    if base.team == 1
+      ctx.fillStyle = "#f00"
+    else
+      ctx.fillStyle = "#00f"
+    ctx.fill()
+
+
+  # draw bullets
   ctx.lineWidth = 2 * viewScale
   for b in bullets
     ctx.beginPath()
     ctx.moveTo( px(b.pos.x), py(b.pos.y) )
     end = b.pos.minus b.dir.normalized().mult( 8 )
     ctx.lineTo( px(end.x), py(end.y) )
+    if b.team == player.team
+      ctx.strokeStyle = '#aaa'
+    else
+      ctx.strokeStyle = '#000'
     ctx.stroke()
-
-    for i in b.intersections
-      ctx.beginPath()
-      ctx.arc(px(i.x), py(i.y), 5 * viewScale, 0, Math.PI*2, false)
-      ctx.closePath()
-      ctx.fillStyle = "#000"
-      ctx.fill()
-
-  ctx.restore()
 
   ctx.beginPath()
   ctx.arc(px(player.pos.x), py(player.pos.y), 5 * viewScale, 0, Math.PI*2, false)
@@ -145,7 +164,7 @@ draw = ->
     if o.team == 1
       ctx.fillStyle = "#800"
     else
-      ctx.fillStyle == "#008"
+      ctx.fillStyle = "#008"
     ctx.fill()
 
   each_barrier_segment ( barrier, p1, p2 ) ->
@@ -177,14 +196,6 @@ draw = ->
     else
       ctx.strokeStyle = '#448'
     ctx.stroke()
-
-  for b in bullets
-    for i in b.intersections
-      ctx.beginPath()
-      ctx.arc(px(i.x), py(i.y), 5 * viewScale, 0, Math.PI*2, false)
-      ctx.closePath()
-      ctx.fillStyle = "#000"
-      ctx.fill()
 
   ctx.restore()
 
@@ -225,6 +236,9 @@ mouse_pos = null
 
 document.onmousemove = (e) ->
   mouse_pos = e
+
+randomInt = (max) ->
+  Math.floor Math.random() * max
 
 get_input = ->
   return unless player
@@ -282,16 +296,17 @@ get_input = ->
     bullet =
       pos: player.pos.plus(dir)
       dir: dir
+      team: player.team
 
     # Figure out which wall bullet will hit
     minTime = Infinity
-    intersections = []
+    minBarrier = null
+
     each_barrier_segment (barrier, p1, p2) ->
       maxDistance = map.width + map.height
       bulletEnd = bullet.pos.plus(bullet.dir.normalized().times(maxDistance))
       intersection = Vector.intersection bullet.pos, bulletEnd, p1, p2
       return unless intersection
-      intersections.push intersection
 
       # calculate intersect time
       diff = intersection.minus bullet.pos
@@ -301,28 +316,39 @@ get_input = ->
         t = diff.y / dir.y
       else
         t = 0
-      minTime = Math.min minTime, t
+
+      if t < minTime
+        minTime = t
+        minBarrier = barrier
 
     if minTime < Infinity
       bullet.deathTick = currentTick + Math.round(minTime)
-      bullet.intersections = intersections
     else
       bullet = null
 
-    reload = 6
+    # shoot faster in own base
+    if minBarrier && minBarrier.team != player.team
+      reload = 8
+    else
+      reload = 6
 
   socket.emit 'update',
     pos: player.pos
     bullet: bullet
     name: name
 
-  # time_diff = new Date().getTime() - last_received
-
-  # if time_diff > 2000
-  #   reconnect()
-
   for b in bullets
     b.pos.add b.dir
+
+  for b in bullets
+    continue if b.team == player.team
+    distanceToFront = b.pos.distance(player.pos)
+    continue if distanceToFront > 8 + 10
+    end = b.pos.minus b.dir.normalized().mult( 8 )
+    distanceToEnd = b.pos.distance(player.pos)
+    if distanceToFront <= 5 || distanceToEnd <= 5
+      # we died
+      player.pos = Vector.load(map.spawns[player.team]).plus new Vector(randomInt(50) - 25, randomInt(50) - 25)
 
   newBullets = []
 

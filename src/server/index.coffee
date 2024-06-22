@@ -35,6 +35,18 @@ console.log "Server running on http://localhost:4100"
 
 tick = 0
 map = convertMap()
+bases = [
+  {
+    team: 1
+    pos: new Vector 0, 0
+    health: 1000
+  }
+  {
+    team: 2
+    pos: new Vector map.width, map.height
+    health: 1000
+  }
+]
 
 players = {}
 last_seen = {}
@@ -42,7 +54,7 @@ last_seen = {}
 bullets = []
 
 randomInt = (max) ->
-  Math.floor Math.random * max
+  Math.floor Math.random() * max
 
 io.sockets.on 'connection', (client) ->
   client.lastBullet = 0
@@ -84,6 +96,7 @@ io.sockets.on 'connection', (client) ->
       tick: tick
       others: others
       bullets: bullets.slice client.lastBullet
+      bases: bases
 
     client.lastBullet = bullets.length
 
