@@ -21,6 +21,7 @@ server = http.createServer (req,res) ->
       when 'js' then 'text/javascript'
       when 'css' then 'text/css'
       when 'html' then 'text/html'
+      when 'wav' then 'audio/x-wav'
       else
         console.log "Unknown content type: #{ext}"
     res.writeHead 200, 'Content-Type': content_type
@@ -52,12 +53,18 @@ players = {}
 last_seen = {}
 
 bullets = []
+boings = []
+deaths = []
+baseHits = []
 
 randomInt = (max) ->
   Math.floor Math.random() * max
 
 io.sockets.on 'connection', (client) ->
   client.lastBullet = 0
+  client.lastBoing = 0
+  client.lastDeath = 0
+  client.lastBaseHit = 0
 
   client.emit 'map', {map}
 
@@ -74,10 +81,16 @@ io.sockets.on 'connection', (client) ->
       client.emit 'player', {player}
 
   client.on 'base_hit', (msg) ->
+    baseHits.push msg
     for base in bases
-      continue unless base.team == msg.team
       base.health--
       base.health = 333 if base.health <= 10
+
+  client.on 'boing', (msg) ->
+    boings.push msg
+
+  client.on 'death', (msg) ->
+    deaths.push msg
 
   client.on 'update', (msg) ->
     now = new Date().getTime()
@@ -102,9 +115,15 @@ io.sockets.on 'connection', (client) ->
       tick: tick
       others: others
       bullets: bullets.slice client.lastBullet
+      boings: boings.slice client.lastBoing
+      deaths: deaths.slice client.lastDeath
+      baseHits: baseHits.slice client.lastBaseHit
       bases: bases
 
     client.lastBullet = bullets.length
+    client.lastBoing = boings.length
+    client.lastDeath = deaths.length
+    client.lastBaseHit = baseHits.length
 
   client.on 'error', ->
     console.log( "error" )

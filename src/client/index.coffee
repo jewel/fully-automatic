@@ -1,4 +1,79 @@
 canvas = document.getElementById( 'arena' )
+audioCtx = new AudioContext
+audioBuffers = {}
+
+loadSound = (name) ->
+  res = await fetch("/sounds/#{name}.wav")
+  arrayBuffer = await res.arrayBuffer()
+  audioBuffers[name] = await audioCtx.decodeAudioData arrayBuffer
+
+loadSound 'pew1'
+loadSound 'thud1'
+loadSound 'boing1'
+loadSound 'oof1'
+loadSound 'boom1'
+
+activeSounds = []
+playSound = (name, source) ->
+  return unless audioBuffers[name]
+
+  bufferSource = audioCtx.createBufferSource()
+  bufferSource.buffer = audioBuffers[name]
+  gainNode = audioCtx.createGain()
+  panNode = audioCtx.createStereoPanner()
+
+  bufferSource.connect gainNode
+  gainNode.connect panNode
+  panNode.connect audioCtx.destination
+
+  sound = {source, bufferSource, gainNode, panNode}
+
+  bufferSource.onended = ->
+    index = activeSounds.indexOf sound
+    if index > -1
+      activeSounds.splice index, 1
+
+  updateSoundNodes sound
+
+  bufferSource.start()
+  activeSounds.push sound
+
+simpleSound = (name, gain) ->
+  console.log gain
+  return unless audioBuffers[name]
+
+  bufferSource = audioCtx.createBufferSource()
+  bufferSource.buffer = audioBuffers[name]
+  gainNode = audioCtx.createGain()
+  panNode = audioCtx.createStereoPanner()
+
+  bufferSource.connect gainNode
+  gainNode.connect audioCtx.destination
+  gainNode.gain.value = gain
+
+  bufferSource.start()
+
+updateSoundNodes = (sound) ->
+  source = sound.source
+  distance = player.pos.distance source.pos
+  # FIXME probably needs to be x^2 in order to sound right
+  sourceVolume = 1
+  if source.volume?
+    sourceVolume = source.volume
+  volume = 1 / (1 + distance / 25) * sourceVolume
+  pan = 0
+  sound.gainNode.gain.setValueAtTime volume, audioCtx.currentTime
+  sound.panNode.pan.setValueAtTime pan, audioCtx.currentTime
+
+  relativeVelocity = source.dir.minus player.dir
+  direction = source.pos.minus player.pos
+  dotProduct = relativeVelocity.dot direction
+  directionMagnitude = direction.length()
+  relativeSpeed = dotProduct / directionMagnitude
+  speedOfSound = 343
+  playbackRate = 1 + relativeSpeed / speedOfSound
+
+  sound.bufferSource.playbackRate.setValueAtTime playbackRate, audioCtx.currentTime
 
 viewScale = 1
 
@@ -36,7 +111,6 @@ identity = localStorage.getItem "identity"
 if !identity
   identity = Math.random()
   localStorage.setItem "identity", identity
-console.log "i am #{identity}"
 
 timer = false
 
@@ -85,6 +159,24 @@ reconnect = ->
       b.dir = Vector.load b.dir
 
       bullets.push b
+      if b.owner == identity
+        b.volume = 0.3
+      playSound "pew1", b
+
+    for b in obj.boings
+      b.pos = Vector.load b.pos
+      b.dir = new Vector 0, 0
+      playSound "boing1", b
+
+    for d in obj.deaths
+      d.pos = Vector.load d.pos
+      d.dir = new Vector 0, 0
+      playSound "oof1", d
+
+    for b in obj.baseHits
+      b.pos = Vector.load b.pos
+      b.dir = new Vector 0, 0
+      playSound "boom1", b
 
     bases = obj.bases
     for b in bases
@@ -106,6 +198,7 @@ px = (x) -> (x - player.pos.x) * viewScale + canvas.width / 2
 py = (y) -> (y - player.pos.y) * viewScale + canvas.height / 2
 
 draw = ->
+  return unless player
   ctx.save()
   # blank canvas
   ctx.fillStyle = '#888'
@@ -274,6 +367,11 @@ get_input = ->
     return unless closest
     return if player.pos.distance( closest ) > 6
     # http://www.yaldex.com/games-programming/0672323699_ch13lev1sec5.html
+
+    socket.emit 'boing',
+      pos: player.pos
+      volume: player.dir.length() / 4 # divide by max speed
+
     delta = a.minus b
     normal = new Vector( delta.y, -delta.x ).normalize()
     player.dir = normal.times( -2 * player.dir.dot( normal ) ).plus(player.dir)
@@ -349,7 +447,9 @@ get_input = ->
     end = b.pos.minus b.dir.normalized().mult( 8 )
     distanceToEnd = b.pos.distance(player.pos)
     if distanceToFront <= 5 || distanceToEnd <= 5
-      # we died
+      socket.emit 'death',
+        pos: player.pos
+
       player.pos = Vector.load(map.spawns[player.team]).plus new Vector(randomInt(50) - 25, randomInt(50) - 25)
 
   # see if our own bullets hit enemy base
@@ -357,19 +457,27 @@ get_input = ->
     continue unless bullet.owner == identity
     continue if bullet.spent
     for base in bases
-      continue if base.team == bullet.team
+      # continue if base.team == bullet.team
       distance = base.pos.distance bullet.pos
       if distance < base.health
         bullet.spent = true
         socket.emit 'base_hit',
+          pos: bullet.pos
           team: base.team
 
-  newBullets = []
-
   # Clean out old bullets
-  bullets = bullets.filter (b) ->
-    b.deathTick >= currentTick
+  newBullets = []
+  for bullet in bullets
+    if bullet.deathTick <= currentTick
+      playSound "thud1", bullet
+      continue
+
+    newBullets.push bullet
+  bullets = newBullets
 
   currentTick++
+
+  for sound in activeSounds
+    updateSoundNodes sound
 
   draw()
