@@ -75,7 +75,7 @@ updateSoundNodes = (sound) ->
   if source.volume?
     sourceVolume = source.volume
   volume = 1 / (1 + distance / 25) * sourceVolume
-  pan = 0
+  pan = (source.pos.x - player.pos.x) / 500
   sound.gainNode.gain.setValueAtTime volume, audioCtx.currentTime
   sound.panNode.pan.setValueAtTime pan, audioCtx.currentTime
 
@@ -265,6 +265,8 @@ draw = ->
   ctx.beginPath()
   ctx.arc(px(player.pos.x), py(player.pos.y), 5 * viewScale, 0, Math.PI*2, false)
   ctx.closePath()
+  ctx.lineWidth = 1
+  ctx.strokeStyle = '#000'
   ctx.stroke()
   if player.team == 1
     ctx.fillStyle = "#f00"
