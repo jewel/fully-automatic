@@ -1,5 +1,9 @@
 canvas = document.getElementById( 'arena' )
-audioCtx = new AudioContext
+
+sampleRate = 48000
+
+audioCtx = new AudioContext(sampleRate: sampleRate)
+
 audioBuffers = {}
 
 loadSound = (name) ->
@@ -14,11 +18,21 @@ loadSound 'oof1'
 loadSound 'boom1'
 
 activeSounds = []
+
 playSound = (name, source) ->
   return unless audioBuffers[name]
+  playBuffer audioBuffers[name], source
 
+playVoice = (voice) ->
+  data = new Float32Array voice.data
+  audioBuffer = audioCtx.createBuffer 1, data.length, sampleRate
+  audioBuffer.copyToChannel data, 0, 0
+  playBuffer audioBuffer, voice
+
+playBuffer = (buffer, source) ->
   bufferSource = audioCtx.createBufferSource()
-  bufferSource.buffer = audioBuffers[name]
+  bufferSource.buffer = buffer
+
   gainNode = audioCtx.createGain()
   panNode = audioCtx.createStereoPanner()
 
@@ -39,7 +53,6 @@ playSound = (name, source) ->
   activeSounds.push sound
 
 simpleSound = (name, gain) ->
-  console.log gain
   return unless audioBuffers[name]
 
   bufferSource = audioCtx.createBufferSource()
@@ -52,6 +65,7 @@ simpleSound = (name, gain) ->
   gainNode.gain.value = gain
 
   bufferSource.start()
+
 
 updateSoundNodes = (sound) ->
   source = sound.source
@@ -69,7 +83,11 @@ updateSoundNodes = (sound) ->
   direction = source.pos.minus player.pos
   dotProduct = relativeVelocity.dot direction
   directionMagnitude = direction.length()
-  relativeSpeed = dotProduct / directionMagnitude
+  if directionMagnitude != 0
+    relativeSpeed = dotProduct / directionMagnitude
+  else
+    relativeSpeed = 0
+
   speedOfSound = 343
   playbackRate = 1 + relativeSpeed / speedOfSound
 
@@ -107,9 +125,9 @@ socket = null
 
 last_received = null
 
-identity = localStorage.getItem "identity"
+identity = localStorage.getItem("identity")
 if !identity
-  identity = Math.random()
+  identity = Math.random().toString()
   localStorage.setItem "identity", identity
 
 timer = false
@@ -177,6 +195,12 @@ reconnect = ->
       b.pos = Vector.load b.pos
       b.dir = new Vector 0, 0
       playSound "boom1", b
+
+    for voice in obj.voices
+      voice.pos = Vector.load voice.pos
+      voice.dir = Vector.load voice.dir
+      continue if voice.owner == identity
+      playVoice voice
 
     bases = obj.bases
     for b in bases
@@ -298,15 +322,54 @@ mouse_pressed = false
 
 reload = 0
 
+recording = false
+
+constraints =
+  audio:
+    sampleRate: sampleRate
+    channelCount: 1
+
+microphoneStream = null
+
+navigator.mediaDevices.getUserMedia(constraints).then (stream) ->
+  microphoneStream = stream
+
+recordingStarted = false
+startRecording = ->
+  return if recordingStarted
+  return unless microphoneStream
+  audioCtx.resume().then ->
+    source = audioCtx.createMediaStreamSource microphoneStream
+    processor = audioCtx.createScriptProcessor 4096, 1, 1
+
+    processor.onaudioprocess = (e) ->
+      return unless recording
+      audioData = e.inputBuffer.getChannelData 0
+      return if audioData.length == 0
+      socket.emit 'voice', audioData
+
+    source.connect processor
+
+    # Chrome does not bother with the script processor unless it is connected to
+    # the destination
+    processor.connect audioCtx.destination
+
+    recordingStarted = true
+
 window.onkeydown = (e) ->
   return unless player
   keys_pressed[e.which] = true
-  e.which != 32 && ( e.which < 37 || e.which > 40 )
+  if e.key == ' '
+    recording = true
+    startRecording()
+  ( e.which < 37 || e.which > 40 )
 
 fullscreen = false
 
 window.onkeyup = (e) ->
   return unless player
+  if e.key == ' '
+    recording = false
   if e.key == 'f'
     if fullscreen
       canvas.exitFullscreen()
@@ -315,7 +378,7 @@ window.onkeyup = (e) ->
     fullscreen = !fullscreen
     return
   keys_pressed[e.which] = false
-  e.which != 32 && ( e.which < 37 || e.which > 40 )
+  ( e.which < 37 || e.which > 40 )
 
 window.onmousedown = (e) ->
   mouse_pressed = true
@@ -341,7 +404,6 @@ get_input = ->
   player.dir.y += acc if keys_pressed[83] || keys_pressed[40]
   player.dir.x -= acc if keys_pressed[65] || keys_pressed[37]
   player.dir.x += acc if keys_pressed[68] || keys_pressed[39]
-  player.dir.mult 0.925 if keys_pressed[32]
   player.dir.mult 0.925 unless keys_pressed[87] ||
                               keys_pressed[83] ||
                               keys_pressed[65] ||
@@ -457,7 +519,7 @@ get_input = ->
     continue unless bullet.owner == identity
     continue if bullet.spent
     for base in bases
-      # continue if base.team == bullet.team
+      continue if base.team == bullet.team
       distance = base.pos.distance bullet.pos
       if distance < base.health
         bullet.spent = true

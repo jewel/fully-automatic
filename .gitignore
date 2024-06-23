@@ -1,2 +1,4 @@
 /node_modules/
 /dist/
+/self-signed.crt
+/self-signed.key

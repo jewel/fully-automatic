@@ -1,9 +1,23 @@
-http = require 'http'
+https = require 'https'
 url = require 'url'
 fs = require 'fs'
+path = require 'path'
+selfsigned = require('selfsigned')
 {Server} = require 'socket.io'
 {Vector} = require './vector'
 {convertMap} = require './convert_map'
+
+certPath = path.join __dirname, '../..', 'self-signed.crt'
+keyPath = path.join __dirname, '../..', 'self-signed.key'
+
+if !fs.existsSync(certPath) || !fs.existsSync(keyPath)
+  pems = selfsigned.generate null, days: 365, keySize: 2048
+  fs.writeFileSync certPath, pems.cert
+  fs.writeFileSync keyPath, pems.private
+
+options =
+  cert: fs.readFileSync certPath
+  key: fs.readFileSync keyPath
 
 send404 = (res) ->
   res.writeHead(404)
@@ -11,7 +25,7 @@ send404 = (res) ->
   res.end()
   res
 
-server = http.createServer (req,res) ->
+server = https.createServer options, (req,res) ->
   path = url.parse(req.url).pathname
   path = '/index.html' if path == '/'
   fs.readFile "#{__dirname}/../client/" + path, (err,data) ->
@@ -23,7 +37,7 @@ server = http.createServer (req,res) ->
       when 'html' then 'text/html'
       when 'wav' then 'audio/x-wav'
       else
-        console.log "Unknown content type: #{ext}"
+        'application/octet-stream'
     res.writeHead 200, 'Content-Type': content_type
     res.write data, 'utf8'
     res.end()
@@ -32,7 +46,7 @@ server.listen 4100
 
 io = new Server(server)
 
-console.log "Server running on http://localhost:4100"
+console.log "Server running on https://localhost:4100"
 
 tick = 0
 map = convertMap()
@@ -56,6 +70,7 @@ bullets = []
 boings = []
 deaths = []
 baseHits = []
+voices = []
 
 randomInt = (max) ->
   Math.floor Math.random() * max
@@ -65,6 +80,7 @@ io.sockets.on 'connection', (client) ->
   client.lastBoing = 0
   client.lastDeath = 0
   client.lastBaseHit = 0
+  client.lastVoice = 0
 
   client.emit 'map', {map}
 
@@ -73,6 +89,7 @@ io.sockets.on 'connection', (client) ->
     player = players[client.identity]
     if !player
       team = (Object.keys(players).length % 2) + 1
+      team = 1
       player =
         team: team
         pos: map.spawns[team].plus new Vector(randomInt(50) - 25, randomInt(50) - 25)
@@ -91,6 +108,15 @@ io.sockets.on 'connection', (client) ->
 
   client.on 'death', (msg) ->
     deaths.push msg
+
+  client.on 'voice', (data) ->
+    player = players[client.identity]
+    return unless player
+    voices.push
+      pos: player.pos
+      dir: player.dir
+      owner: client.identity
+      data: data
 
   client.on 'update', (msg) ->
     now = new Date().getTime()
@@ -118,12 +144,14 @@ io.sockets.on 'connection', (client) ->
       boings: boings.slice client.lastBoing
       deaths: deaths.slice client.lastDeath
       baseHits: baseHits.slice client.lastBaseHit
+      voices: voices.slice client.lastVoice
       bases: bases
 
     client.lastBullet = bullets.length
     client.lastBoing = boings.length
     client.lastDeath = deaths.length
     client.lastBaseHit = baseHits.length
+    client.lastVoice = voices.length
 
   client.on 'error', ->
     console.log( "error" )
