@@ -2,7 +2,9 @@ https = require 'https'
 url = require 'url'
 fs = require 'fs'
 path = require 'path'
+crypto = require 'crypto'
 selfsigned = require('selfsigned')
+
 {Server} = require 'socket.io'
 {Vector} = require './vector'
 {convertMap} = require './convert_map'
@@ -25,10 +27,16 @@ send404 = (res) ->
   res.end()
   res
 
+code = ""
+code += fs.readFileSync path.join __dirname, '..', 'client/vector.js'
+code += fs.readFileSync path.join __dirname, '..', 'client/index.js'
+
+version = crypto.createHash('md5').update(code).digest("hex")
+
 server = https.createServer options, (req,res) ->
   path = url.parse(req.url).pathname
   path = '/index.html' if path == '/'
-  fs.readFile "#{__dirname}/../client/" + path, (err,data) ->
+  fs.readFile "#{__dirname}/../client/" + path, (err, data) ->
     return send404 res if err
     ext = path.substr path.lastIndexOf( "." ) + 1
     content_type = switch ext
@@ -39,7 +47,10 @@ server = https.createServer options, (req,res) ->
       else
         'application/octet-stream'
     res.writeHead 200, 'Content-Type': content_type
-    res.write data, 'utf8'
+    if path == '/index.html'
+      # This is one way to cachebust the code during development
+      data = data.toString('utf8').replace 'CODE_HERE', code
+    res.write data
     res.end()
 
 server.listen 4100
@@ -72,17 +83,16 @@ deaths = []
 baseHits = []
 voices = []
 
-randomInt = (max) ->
-  Math.floor Math.random() * max
-
 io.sockets.on 'connection', (client) ->
-  client.lastBullet = 0
-  client.lastBoing = 0
-  client.lastDeath = 0
-  client.lastBaseHit = 0
-  client.lastVoice = 0
+  client.lastBullet = bullets.length
+  client.lastBoing = boings.length
+  client.lastDeath = deaths.length
+  client.lastBaseHit = baseHits.length
+  client.lastVoice = voices.length
 
   client.emit 'map', {map}
+
+  client.emit 'version', version
 
   client.on 'identity', (msg) ->
     client.identity = msg.identity
@@ -92,10 +102,9 @@ io.sockets.on 'connection', (client) ->
       team = 1
       player =
         team: team
-        pos: map.spawns[team].plus new Vector(randomInt(50) - 25, randomInt(50) - 25)
-        dir: new Vector 0, 0
       players[client.identity] = player
-      client.emit 'player', {player}
+
+    client.emit 'player', {player}
 
   client.on 'base_hit', (msg) ->
     baseHits.push msg

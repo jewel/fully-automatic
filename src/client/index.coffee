@@ -23,10 +23,31 @@ playSound = (name, source) ->
   return unless audioBuffers[name]
   playBuffer audioBuffers[name], source
 
+voiceTimestamps = {}
+
+# add a buffer for voice track jitter, two frames
+# even without network latency, our audio chunks will not come in perfectly
+# lined up with our framerate, so some will be delayed
+
+# Two frames seems like a safe amount until we're more sophisticated
+audioJitterBuffer = 0.033
+
 playVoice = (voice) ->
   data = new Float32Array voice.data
   audioBuffer = audioCtx.createBuffer 1, data.length, sampleRate
   audioBuffer.copyToChannel data, 0, 0
+
+  nextTime = voiceTimestamps[voice.owner]
+  if !nextTime || nextTime < audioCtx.currentTime
+    voice.audioStartTime = audioCtx.currentTime + audioJitterBuffer
+    voiceTimestamps[voice.owner] = voice.audioStartTime + audioBuffer.duration
+  else
+    voice.audioStartTime = nextTime
+    voiceTimestamps[voice.owner] = nextTime + audioBuffer.duration
+
+  # Changing the playbackRate causes problems because it means if someone is coming towards us that the voice segments will play back faster than real time, which means we'll end up having gaps in them.
+  voice.disableDoppler
+
   playBuffer audioBuffer, voice
 
 playBuffer = (buffer, source) ->
@@ -49,7 +70,7 @@ playBuffer = (buffer, source) ->
 
   updateSoundNodes sound
 
-  bufferSource.start()
+  bufferSource.start source.audioStartTime || audioCtx.currentTime
   activeSounds.push sound
 
 simpleSound = (name, gain) ->
@@ -75,27 +96,35 @@ updateSoundNodes = (sound) ->
   if source.volume?
     sourceVolume = source.volume
   volume = 1 / (1 + distance / 25) * sourceVolume
+
   pan = (source.pos.x - player.pos.x) / 500
+  pan = -1 if pan < -1
+  pan = 1 if pan > 1
+
   sound.gainNode.gain.setValueAtTime volume, audioCtx.currentTime
   sound.panNode.pan.setValueAtTime pan, audioCtx.currentTime
 
-  relativeVelocity = source.dir.minus player.dir
-  direction = source.pos.minus player.pos
-  dotProduct = relativeVelocity.dot direction
-  directionMagnitude = direction.length()
-  if directionMagnitude != 0
-    relativeSpeed = dotProduct / directionMagnitude
+  if source.disableDoppler
+    playbackRate = 1
   else
-    relativeSpeed = 0
+    relativeVelocity = source.dir.minus player.dir
+    direction = source.pos.minus player.pos
+    dotProduct = relativeVelocity.dot direction
+    directionMagnitude = direction.length()
+    if directionMagnitude != 0
+      relativeSpeed = dotProduct / directionMagnitude
+    else
+      relativeSpeed = 0
 
-  speedOfSound = 343
-  playbackRate = 1 + relativeSpeed / speedOfSound
+    speedOfSound = 343
+    playbackRate = 1 + relativeSpeed / speedOfSound
 
   sound.bufferSource.playbackRate.setValueAtTime playbackRate, audioCtx.currentTime
 
 viewScale = 1
 
 draw = ->
+  # temporary empty draw function for first call to onResize
 
 onResize = ->
   w = window.innerWidth
@@ -123,21 +152,24 @@ ctx = canvas.getContext('2d')
 
 socket = null
 
-last_received = null
-
 identity = localStorage.getItem("identity")
 if !identity
   identity = Math.random().toString()
   localStorage.setItem "identity", identity
 
-timer = false
-
 player = null
+facing = new Vector 0, 0
 map = null
 bullets = []
 others = []
 bases = []
 currentTick = 0
+
+serverVersion = null
+
+moveToSpawn = ->
+  player.pos = Vector.load(map.spawns[player.team]).plus new Vector(randomInt(50) - 25, randomInt(50) - 25)
+  player.dir = new Vector 0, 0
 
 each_barrier_segment = (callback) ->
   for barrier in map.barriers
@@ -147,10 +179,19 @@ each_barrier_segment = (callback) ->
       callback barrier, points[index], points[index+1]
       index++
 
-reconnect = ->
+connect = ->
   socket = io.connect window.location.href
 
-  last_received = new Date().getTime() + 10000
+  # socket.io.engine.on 'packet', ({type, data}) ->
+  #   if type == 'message'
+  #     console.log data if data.indexOf('update') == -1
+
+  socket.on 'version', (version) ->
+    console.log version
+    if !serverVersion
+      serverVersion = version
+    else if serverVersion != version
+      location.reload()
 
   socket.on 'map', (obj) ->
     map = obj.map
@@ -161,12 +202,20 @@ reconnect = ->
       barrier.points = newPoints
 
   socket.on 'player', (obj) ->
-    player = obj.player
-    player.pos = Vector.load player.pos
-    player.dir = Vector.load player.dir
+    if player?
+      # server reset during development, ignore
+    else
+      player = obj.player
+      # we must have refreshed, trust the server position
+      if player.pos?
+        player.pos = Vector.load player.pos
+        player.dir = new Vector 0, 0
+      else
+        moveToSpawn()
 
   socket.on 'update', (obj) ->
-    last_received = new Date().getTime()
+    # We can measure lag easily here because this update message is in direct
+    # response to ours
     currentTick = obj.tick
     others = obj.others
     for o in others
@@ -207,22 +256,19 @@ reconnect = ->
       b.pos = Vector.load b.pos
 
   socket.on 'connect', ->
-    last_received = new Date().getTime() + 5000
-
     socket.emit 'identity', {identity}
 
-    if !timer
-       window.setInterval get_input, 1000/60
+  socket.io.on 'reconnect', ->
+    socket.emit 'identity', {identity}
 
-    timer = true
-
-reconnect()
+connect()
 
 px = (x) -> (x - player.pos.x) * viewScale + canvas.width / 2
 py = (y) -> (y - player.pos.y) * viewScale + canvas.height / 2
 
 draw = ->
   return unless player
+
   ctx.save()
   # blank canvas
   ctx.fillStyle = '#888'
@@ -274,6 +320,17 @@ draw = ->
     ctx.fillStyle = "#00f"
   ctx.fill()
 
+  ctx.beginPath()
+  darknessPoint = player.pos.minus facing.times(20)
+  darknessPoint2 = darknessPoint.plus(new Vector(facing.y, -facing.x).times(1000))
+  darknessPoint3 = darknessPoint.plus(new Vector(-facing.y, facing.x).times(1000))
+  darknessPoint4 = darknessPoint.minus(facing.times(1000))
+  ctx.lineTo px(darknessPoint2.x), py(darknessPoint2.y)
+  ctx.lineTo px(darknessPoint4.x), py(darknessPoint4.y)
+  ctx.lineTo px(darknessPoint3.x), py(darknessPoint3.y)
+  ctx.closePath()
+  ctx.fillStyle = "#ccc"
+  ctx.fill()
 
   for o in others
     ctx.beginPath()
@@ -333,32 +390,32 @@ constraints =
 
 microphoneStream = null
 
-navigator.mediaDevices.getUserMedia(constraints).then (stream) ->
-  microphoneStream = stream
-
 recordingStarted = false
 startRecording = ->
   return if recordingStarted
-  return unless microphoneStream
-  audioCtx.resume().then ->
-    source = audioCtx.createMediaStreamSource microphoneStream
-    processor = audioCtx.createScriptProcessor 4096, 1, 1
+  navigator.mediaDevices.getUserMedia(constraints).then (stream) ->
+    microphoneStream = stream
 
-    processor.onaudioprocess = (e) ->
-      return unless recording
-      audioData = e.inputBuffer.getChannelData 0
-      return if audioData.length == 0
-      socket.emit 'voice', audioData
+    return unless microphoneStream
+    audioCtx.resume().then ->
+      source = audioCtx.createMediaStreamSource microphoneStream
+      processor = audioCtx.createScriptProcessor 1024, 1, 1
 
-    source.connect processor
+      processor.onaudioprocess = (e) ->
+        return unless recording
+        audioData = e.inputBuffer.getChannelData 0
+        return if audioData.length == 0
+        socket.emit 'voice', audioData
 
-    # Chrome does not bother with the script processor unless it is connected to
-    # the destination
-    processor.connect audioCtx.destination
+      source.connect processor
 
-    recordingStarted = true
+      # Chrome does not bother with the script processor unless it is connected to
+      # the destination
+      processor.connect audioCtx.destination
 
-window.onkeydown = (e) ->
+      recordingStarted = true
+
+document.onkeydown = (e) ->
   return unless player
   keys_pressed[e.which] = true
   if e.key == ' '
@@ -368,25 +425,29 @@ window.onkeydown = (e) ->
 
 fullscreen = false
 
-window.onkeyup = (e) ->
+document.onkeyup = (e) ->
   return unless player
   if e.key == ' '
     recording = false
   if e.key == 'f'
     if fullscreen
-      canvas.exitFullscreen()
+      canvas.releasePointerCapture e.pointerId
+      document.exitFullscreen()
     else
-      canvas.requestFullscreen()
+      canvas.setPointerCapture e.pointerId
+      # Setting the canvas as fullscreen means that there will be padding added to the element where our black body normally is
+      document.body.requestFullscreen()
+
     fullscreen = !fullscreen
     return
   keys_pressed[e.which] = false
   ( e.which < 37 || e.which > 40 )
 
-window.onmousedown = (e) ->
+document.onmousedown = (e) ->
   mouse_pressed = true
   false
 
-window.onmouseup = (e) ->
+document.onmouseup = (e) ->
   mouse_pressed = false
   false
 
@@ -395,10 +456,19 @@ mouse_pos = null
 document.onmousemove = (e) ->
   mouse_pos = e
 
+  rect = canvas.getBoundingClientRect()
+  mouseX = mouse_pos.clientX - rect.left
+  mouseY = mouse_pos.clientY - rect.top
+
+  facing = new Vector mouseX, mouseY
+  facing.sub x: canvas.width / 2, y: canvas.height / 2
+  facing.normalize()
+  facing.mult 5
+
 randomInt = (max) ->
   Math.floor Math.random() * max
 
-get_input = ->
+getInput = ->
   return unless player
 
   acc = 0.25
@@ -448,10 +518,12 @@ get_input = ->
   bullet = null
 
   if mouse_pressed && mouse_pos && reload == 0
-    # FIXME account for viewScale
-    dir = new Vector( mouse_pos.clientX + window.scrollX - canvas.offsetLeft,
-                      mouse_pos.clientY + window.scrollY - canvas.offsetTop )
-    dir.sub {x: canvas.width / 2, y: canvas.height / 2}
+    rect = canvas.getBoundingClientRect()
+    mouseX = mouse_pos.clientX - rect.left
+    mouseY = mouse_pos.clientY - rect.top
+
+    dir = new Vector mouseX, mouseY
+    dir.sub x: canvas.width / 2, y: canvas.height / 2
     dir.normalize()
     dir.mult 5
 
@@ -514,7 +586,7 @@ get_input = ->
       socket.emit 'death',
         pos: player.pos
 
-      player.pos = Vector.load(map.spawns[player.team]).plus new Vector(randomInt(50) - 25, randomInt(50) - 25)
+      moveToSpawn()
 
   # see if our own bullets hit enemy base
   for bullet in bullets
@@ -545,3 +617,5 @@ get_input = ->
     updateSoundNodes sound
 
   draw()
+
+setInterval getInput, 1000/60
