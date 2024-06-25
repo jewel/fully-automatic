@@ -187,7 +187,6 @@ connect = ->
   #     console.log data if data.indexOf('update') == -1
 
   socket.on 'version', (version) ->
-    console.log version
     if !serverVersion
       serverVersion = version
     else if serverVersion != version
@@ -213,47 +212,54 @@ connect = ->
       else
         moveToSpawn()
 
-  socket.on 'update', (obj) ->
+  socket.on 'update', (msg) ->
     # We can measure lag easily here because this update message is in direct
     # response to ours
-    currentTick = obj.tick
-    others = obj.others
+    currentTick = msg.tick
+    others = msg.others
     for o in others
       o.pos = Vector.load o.pos
 
-    for b in obj.bullets
-      b.pos = Vector.load b.pos
-      b.dir = Vector.load b.dir
-
-      bullets.push b
-      if b.owner == identity
-        b.volume = 0.3
-      playSound "pew1", b
-
-    for b in obj.boings
-      b.pos = Vector.load b.pos
-      b.dir = new Vector 0, 0
-      playSound "boing1", b
-
-    for d in obj.deaths
-      d.pos = Vector.load d.pos
-      d.dir = new Vector 0, 0
-      playSound "oof1", d
-
-    for b in obj.baseHits
-      b.pos = Vector.load b.pos
-      b.dir = new Vector 0, 0
-      playSound "boom1", b
-
-    for voice in obj.voices
-      voice.pos = Vector.load voice.pos
-      voice.dir = Vector.load voice.dir
-      continue if voice.owner == identity
-      playVoice voice
-
-    bases = obj.bases
+    bases = msg.bases
     for b in bases
       b.pos = Vector.load b.pos
+
+    for e in msg.events
+      [tick, type, obj] = e
+
+      switch type
+        when 'bullet'
+          obj.pos = Vector.load obj.pos
+          obj.dir = Vector.load obj.dir
+
+          bullets.push obj
+          if obj.owner == identity
+            obj.volume = 0.3
+          playSound "pew1", obj
+
+        when 'boing'
+          obj.pos = Vector.load obj.pos
+          obj.dir = new Vector 0, 0
+          playSound "boing1", obj
+
+        when 'death'
+          obj.pos = Vector.load obj.pos
+          obj.dir = new Vector 0, 0
+          playSound "oof1", obj
+
+        when 'base_hit'
+          obj.pos = Vector.load obj.pos
+          obj.dir = new Vector 0, 0
+          playSound "boom1", obj
+
+        when 'voice'
+          obj.pos = Vector.load obj.pos
+          obj.dir = new Vector 0, 0
+          continue if obj.owner == identity
+          playVoice obj
+
+        else
+          console.log 'unknown event type: #{type}'
 
   socket.on 'connect', ->
     socket.emit 'identity', {identity}

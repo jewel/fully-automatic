@@ -75,20 +75,20 @@ bases = [
 ]
 
 players = {}
-last_seen = {}
 
-bullets = []
-boings = []
-deaths = []
-baseHits = []
-voices = []
+events = []
+deletedEvents = 0
+addEvent = (type, event) ->
+  events.push [tick, type, event]
+  if events.length % 1000 == 0
+    # clean out old events so we don't run out of RAM
+    oldLength = events.length
+    events = events.filter (e) ->
+      e[0] > tick - 240
+    deletedEvents += oldLength - events.length
 
 io.sockets.on 'connection', (client) ->
-  client.lastBullet = bullets.length
-  client.lastBoing = boings.length
-  client.lastDeath = deaths.length
-  client.lastBaseHit = baseHits.length
-  client.lastVoice = voices.length
+  client.lastEvent = deletedEvents + events.length
 
   client.emit 'map', {map}
 
@@ -104,33 +104,31 @@ io.sockets.on 'connection', (client) ->
         team: team
       players[client.identity] = player
 
+    player.connected = true
     client.emit 'player', {player}
 
   client.on 'base_hit', (msg) ->
-    baseHits.push msg
+    addEvent 'base_hit', msg
     for base in bases
       base.health--
       base.health = 333 if base.health <= 10
 
   client.on 'boing', (msg) ->
-    boings.push msg
+    addEvent 'boing', msg
 
   client.on 'death', (msg) ->
-    deaths.push msg
+    addEvent 'death', msg
 
   client.on 'voice', (data) ->
     player = players[client.identity]
     return unless player
-    voices.push
+    addEvent 'voice',
       pos: player.pos
       dir: player.dir
       owner: client.identity
       data: data
 
   client.on 'update', (msg) ->
-    now = new Date().getTime()
-    last_seen[client.id] = now
-
     player = players[client.identity]
     if !player
       return
@@ -138,35 +136,34 @@ io.sockets.on 'connection', (client) ->
     if msg.bullet
       bullet = msg.bullet
       bullet.team = player.team
-      bullets.push bullet
+      addEvent 'bullet', bullet
 
     player.pos = Vector.load msg.pos
 
     others = []
     for identity, p of players
-      others.push p unless identity == client.identity
+      continue if identity == client.identity
+      continue unless p.connected
+      others.push p
+
+    firstEvent = client.lastEvent - deletedEvents
+    firstEvent = 0 if firstEvent < 0
 
     client.emit 'update',
       tick: tick
       others: others
-      bullets: bullets.slice client.lastBullet
-      boings: boings.slice client.lastBoing
-      deaths: deaths.slice client.lastDeath
-      baseHits: baseHits.slice client.lastBaseHit
-      voices: voices.slice client.lastVoice
+      events: events.slice firstEvent
       bases: bases
 
-    client.lastBullet = bullets.length
-    client.lastBoing = boings.length
-    client.lastDeath = deaths.length
-    client.lastBaseHit = baseHits.length
-    client.lastVoice = voices.length
+    client.lastEvent = deletedEvents + events.length
 
   client.on 'error', ->
     console.log( "error" )
 
   client.on 'disconnect', ->
-    console.log( "disconnect" )
+    player = players[client.identity]
+    if player
+      player.connected = false
 
 setInterval(
   ->
