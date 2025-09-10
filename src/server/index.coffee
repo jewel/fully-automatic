@@ -99,7 +99,6 @@ io.sockets.on 'connection', (client) ->
     player = players[client.identity]
     if !player
       team = (Object.keys(players).length % 2) + 1
-      team = 1
       player =
         team: team
       players[client.identity] = player

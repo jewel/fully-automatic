@@ -326,6 +326,17 @@ draw = ->
     ctx.fillStyle = "#00f"
   ctx.fill()
 
+  for o in others
+    ctx.beginPath()
+    ctx.arc px(o.pos.x), py(o.pos.y), 5 * viewScale, 0, Math.PI*2, false
+    ctx.closePath()
+    ctx.stroke()
+    if o.team == 1
+      ctx.fillStyle = "#800"
+    else
+      ctx.fillStyle = "#008"
+    ctx.fill()
+
   ctx.beginPath()
   darknessPoint = player.pos.minus facing.times(20)
   darknessPoint2 = darknessPoint.plus(new Vector(facing.y, -facing.x).times(1000))
@@ -337,17 +348,6 @@ draw = ->
   ctx.closePath()
   ctx.fillStyle = "#ccc"
   ctx.fill()
-
-  for o in others
-    ctx.beginPath()
-    ctx.arc px(o.pos.x), py(o.pos.y), 5 * viewScale, 0, Math.PI*2, false
-    ctx.closePath()
-    ctx.stroke()
-    if o.team == 1
-      ctx.fillStyle = "#800"
-    else
-      ctx.fillStyle = "#008"
-    ctx.fill()
 
   each_barrier_segment ( barrier, p1, p2 ) ->
     return if barrier.edge
