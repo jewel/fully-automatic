@@ -1,4 +1,4 @@
-https = require 'https'
+http = require 'http'
 url = require 'url'
 fs = require 'fs'
 path = require 'path'
@@ -33,7 +33,7 @@ code += fs.readFileSync path.join __dirname, '..', 'client/index.js'
 
 version = crypto.createHash('md5').update(code).digest("hex")
 
-server = https.createServer options, (req,res) ->
+server = http.createServer (req,res) ->
   path = url.parse(req.url).pathname
   path = '/index.html' if path == '/'
   fs.readFile "#{__dirname}/../client/" + path, (err, data) ->

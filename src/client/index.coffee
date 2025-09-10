@@ -337,18 +337,6 @@ draw = ->
       ctx.fillStyle = "#008"
     ctx.fill()
 
-  ctx.beginPath()
-  darknessPoint = player.pos.minus facing.times(20)
-  darknessPoint2 = darknessPoint.plus(new Vector(facing.y, -facing.x).times(1000))
-  darknessPoint3 = darknessPoint.plus(new Vector(-facing.y, facing.x).times(1000))
-  darknessPoint4 = darknessPoint.minus(facing.times(1000))
-  ctx.lineTo px(darknessPoint2.x), py(darknessPoint2.y)
-  ctx.lineTo px(darknessPoint4.x), py(darknessPoint4.y)
-  ctx.lineTo px(darknessPoint3.x), py(darknessPoint3.y)
-  ctx.closePath()
-  ctx.fillStyle = "#ccc"
-  ctx.fill()
-
   each_barrier_segment ( barrier, p1, p2 ) ->
     return if barrier.edge
     p3 = p1.plus p1.minus( player.pos ).times(1000)
